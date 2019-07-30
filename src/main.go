@@ -57,8 +57,7 @@ func main()  {
 					text = strings.TrimSpace(text)
 					text = strings.ToLower(text)
 
-					// pass of to handler; uses regex to determine appropriate
-					// TODO: Implement this
+					// pass of to handler; uses regex to determine appropriate reply
 					go handleMessage(text, event, slackRTM)
 
 				case *slack.RTMError:
@@ -78,18 +77,64 @@ func main()  {
 
 func handleMessage(message string, event *slack.MessageEvent, slackRTM *slack.RTM) {
 
+	if event.User == personMap["Jonathan"] {
+		matched, _ := regexp.MatchString("^!cleanup$", message)
+		if matched {
+			cleanupBotMessages(event, slackRTM)
+		}
+	}
+
+	toxicRegexp, err := regexp.Compile(".*toxic.*")
+	if err != nil {
+		log.Fatalf("Error generating toxicRegexp: %s", err)
+	}
+
+	if toxicRegexp.MatchString(message) {
+		var toxicString string
+		var randNumberChoice = randGenerator.Int() % 10
+		if randNumberChoice >= 0 && randNumberChoice <= 2 {
+			toxicString = "Maybe you are the one who's toxic?"
+		} else if randNumberChoice == 3 {
+			toxicString = "Take a moment to consider the alternative"
+		}
+
+		err := slackRTM.AddReaction("toxic", slack.ItemRef{
+			Channel:   event.Channel,
+			Timestamp: event.Timestamp,
+		})
+		if err != nil {
+			log.Println("React error: ", err)
+		}
+
+		if toxicString != "" {
+			response, rtmErr := slackRTM.PostEphemeral(event.Channel, event.User, slack.MsgOptionText(toxicString, false))
+			if rtmErr != nil {
+				log.Println("Error with posting toxic Ephemeral: ", err)
+				return
+			}
+			log.Println("PostEphemeral response:", response)
+		}
+	}
+
 	easyButtonRegexp, err := regexp.Compile("(.*(e+a+[sz]+y+|e+z+|e+ +z+).*)")
 	if err != nil {
 		log.Fatalf("Error generating easyButtonRegexp: %s", err)
 	}
 
 	if easyButtonRegexp.MatchString(message) {
-		if event.User == "UL1MWS8D6" && randGenerator.Int() % 4 == 0 {
+		if event.User == "UL1MWS8D6" && randGenerator.Int() % 9 == 0 {
 			slackRTM.SendMessage(slackRTM.NewOutgoingMessage("No Chen, YOU'RE EZ :easy:", event.Channel))
 			return
 		}
 
-		slackRTM.SendMessage(slackRTM.NewOutgoingMessage(":easy:", event.Channel))
+		//slackRTM.SendMessage(slackRTM.NewOutgoingMessage(":easy:", event.Channel))
+		err := slackRTM.AddReaction("easy", slack.ItemRef{
+			Channel:   event.Channel,
+			Timestamp: event.Timestamp,
+		})
+		if err != nil {
+			log.Println("React error: ", err)
+		}
 	}
 
 	for _, groupAlias := range groupAliases {
@@ -105,5 +150,22 @@ func (ga GroupAlias) handleGroupAlias(message string, event *slack.MessageEvent,
 
 	if groupAliasRegex.MatchString(message) {
 		slackRTM.SendMessage(slackRTM.NewOutgoingMessage(ga.MentionString, event.Channel))
+	}
+}
+
+func cleanupBotMessages(event *slack.MessageEvent, slackRTM *slack.RTM) {
+	info := slackRTM.GetInfo()
+
+	// pull all history
+	history, err := slackRTM.GetChannelHistory(event.Channel, slack.NewHistoryParameters())
+	if err != nil {
+		log.Println("Error with retrieving history: ", err)
+		return
+	}
+
+	for _, message := range history.Messages {
+		if message.User == info.User.ID {
+			log.Println("Preparing to delete message: ", message)
+		}
 	}
 }
