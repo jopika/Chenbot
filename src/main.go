@@ -1,18 +1,29 @@
 package main
 
 import (
+	"./util"
 	"fmt"
+	"github.com/nlopes/slack"
 	"log"
 	"math/rand"
 	"regexp"
 	"strings"
-	"github.com/nlopes/slack"
 	"time"
-
-	"./util"
 )
 
+type GroupAlias struct {
+	RegexString string
+	MentionString string
+}
+
 var randGenerator = rand.New(rand.NewSource(time.Now().UnixNano()))
+var personMap = util.IntializeMapping()
+var groupAliases []GroupAlias = []GroupAlias{
+	{RegexString: ".*@jam.*", MentionString: fmt.Sprintf("<@%s>, <@%s>", personMap["Jenna"], personMap["Sam"])},
+	{RegexString: ".*@chyam.*", MentionString: fmt.Sprintf("<@%s>, <@%s>", personMap["Chen"], personMap["Shyam"])},
+	{RegexString: ".*@dering.*", MentionString: fmt.Sprintf("<@%s>, <@%s>", personMap["Derek"], personMap["Wenting"])},
+	{RegexString: ".*@shrevor.*", MentionString: fmt.Sprintf("<@%s>, <@%s>", personMap["Shyam"], personMap["Trevor"])},
+}
 
 func main()  {
 	log.Println("Starting up ChenBot...")
@@ -81,43 +92,18 @@ func handleMessage(message string, event *slack.MessageEvent, slackRTM *slack.RT
 		slackRTM.SendMessage(slackRTM.NewOutgoingMessage(":easy:", event.Channel))
 	}
 
-	jamRegexp, err := regexp.Compile(".*@jam.*")
-	if err != nil {
-		log.Fatalf("Error generating jamRegexp: %s", err)
+	for _, groupAlias := range groupAliases {
+		groupAlias.handleGroupAlias(message, event, slackRTM)
 	}
-
-	if jamRegexp.MatchString(message) {
-		slackRTM.SendMessage(slackRTM.NewOutgoingMessage("<@UKQA8VBHR>, <@UL5194VE2>", event.Channel))
-	}
-
-	chamRegexp, err := regexp.Compile(".*@chyam.*")
-	if err != nil {
-		log.Fatalf("Error generating chamRegexp: %s", err)
-	}
-
-	if chamRegexp.MatchString(message) {
-		slackRTM.SendMessage(slackRTM.NewOutgoingMessage("<@UL1MWS8D6>, <@UL3HFQPHD>", event.Channel))
-	}
-
-	deringRegexp, err := regexp.Compile(".*@dering.*")
-	if err != nil {
-		log.Fatalf("Error generating deringRegexp: %s", err)
-	}
-
-	if deringRegexp.MatchString(message) {
-		slackRTM.SendMessage(slackRTM.NewOutgoingMessage("<@UKQBVGZGT>, <@UKQ9P39B4>", event.Channel))
-	}
-
-	shrevorRegexp, err := regexp.Compile(".*@shrevor.*")
-	if err != nil {
-		log.Fatalf("Error generating shrevorRegexp: %s", err)
-	}
-
-	if shrevorRegexp.MatchString(message) {
-		slackRTM.SendMessage(slackRTM.NewOutgoingMessage("<@ULJTDFB4H>, <@UL3HFQPHD>", event.Channel))
-	}
-
-
 }
 
+func (ga GroupAlias) handleGroupAlias(message string, event *slack.MessageEvent, slackRTM *slack.RTM) {
+	groupAliasRegex, err := regexp.Compile(ga.RegexString)
+	if err != nil {
+		log.Fatalf("Error generating expression %s with: %s", ga.RegexString, err)
+	}
 
+	if groupAliasRegex.MatchString(message) {
+		slackRTM.SendMessage(slackRTM.NewOutgoingMessage(ga.MentionString, event.Channel))
+	}
+}
